@@ -10,6 +10,7 @@ from langchain_core.embeddings import Embeddings
 
 from .. import config, db
 
+EMBED_BATCH = 4
 INDEX_VERSION = "v2"     # bump to force a full re-index when the indexed text/metadata layout changes
 
 
@@ -18,7 +19,11 @@ class LocalEmbeddings(Embeddings):
         self._ef = DefaultEmbeddingFunction()
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return [list(map(float, v)) for v in self._ef(texts)]
+        # Small batches keep peak memory low (large ones spike past 700 MB, more than a 512 MB host has).
+        out: list[list[float]] = []
+        for i in range(0, len(texts), EMBED_BATCH):
+            out += [list(map(float, v)) for v in self._ef(texts[i:i + EMBED_BATCH])]
+        return out
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
