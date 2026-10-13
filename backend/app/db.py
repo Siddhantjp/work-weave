@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS geo_cache (
   resolved_name TEXT,
   fetched_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS listing_vectors (          -- embeddings for retrieval (see search/index.py)
+  url TEXT PRIMARY KEY REFERENCES listings(url),
+  content_hash TEXT NOT NULL,        -- hash of the embedded text + index version: re-embed only when it changes
+  vec BLOB NOT NULL                  -- 768 float32, unit length
+);
 CREATE TABLE IF NOT EXISTS listing_requirements (   -- used by the stable-matching extension only
   url TEXT PRIMARY KEY REFERENCES listings(url),
   content_hash TEXT NOT NULL,

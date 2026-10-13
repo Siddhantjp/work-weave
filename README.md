@@ -8,7 +8,7 @@ reads their requirements, and ranks them for you. Built with **LangChain + LangG
 ```
 python -m venv .venv
 .venv\Scripts\pip install -r backend\requirements.txt
-copy .env.example .env          # then fill in GROQ_API_KEY, LANGSMITH_API_KEY, GOOGLE_CLIENT_ID/SECRET
+copy .env.example .env          # then fill in GROQ_API_KEY, GEMINI_API_KEY, LANGSMITH_API_KEY, GOOGLE_CLIENT_ID/SECRET
 cd frontend && npm ci && npm run build && cd ..
 start.bat                       # http://localhost:8000
 ```
@@ -19,7 +19,7 @@ Tests (offline: no network, Groq or LangSmith): `cd backend && ..\.venv\Scripts\
 
 ```
 understand → check_source → retrieve → grade_documents → augment → grade_limits → finish
-  Groq #1     apna.co tool   Chroma:     drop off-topic     Groq #2      hard limits
+  Groq #1     apna.co tool   Gemini      drop off-topic     Groq #2      hard limits
  (profile +   (live scrape,  multi-query  & expired         (read reqs,  enforced
   query plan)  polite)       MMR + RRF    listings (code)    rank, why)   by code
 ```
@@ -51,7 +51,7 @@ Three storage areas, deliberately separate:
 | What | Where | Why |
 |---|---|---|
 | Users, login sessions, **what each user searched for** and the results they saw | **Accounts database**: `DATABASE_URL` (Postgres in production) or `data/users.db` locally; code in `app/accounts/` | Personal data. Must survive deploys; must be erasable. |
-| Scraped listings, scrape log, geocodes | `data/listings.db` (SQLite) + `data/chroma` (vectors) | Public data that can be re-scraped at any time. |
+| Scraped listings, scrape log, geocodes, listing embeddings | `data/listings.db` (SQLite) | Public data that can be re-scraped and re-embedded at any time. |
 | Cached LLM answers | `data/llm_cache.db` | Contains prompts (so what users typed), kept away from listings. |
 
 Sign-in is **Google OAuth** only (no passwords stored). Accounts are matched on Google's stable id, sessions are random tokens of which only
@@ -65,7 +65,7 @@ Setup: Google Cloud Console → APIs & Services → Credentials → Create OAuth
 (`GROQ_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BASE_URL`, LangSmith keys) and add the Render URL's callback to the Google client.
 Notes: Render's free web disk is wiped on every deploy and restart, which is fine for listings, vectors and the LLM cache (they rebuild) but is
 exactly why accounts live in Postgres. Render's free Postgres expires after 30 days; for a longer-lived free database use Neon or Supabase and
-paste their connection string into `DATABASE_URL`. The free instance has 512 MB of RAM; the local embedding model is the biggest user of it.
+paste their connection string into `DATABASE_URL`. The free instance has 512 MB of RAM: embeddings are therefore computed by the hosted Gemini API (`GEMINI_API_KEY`) instead of a local model, which keeps the app at roughly 130 MB.
 
 ## Layout
 

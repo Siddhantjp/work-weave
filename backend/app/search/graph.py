@@ -110,7 +110,7 @@ def retrieve(s: State) -> dict:
     trades = active_trades(s)
     if not trades:
         return {"candidates": [], "events": ev("retrieve", "no trades to search")}
-    index_listings()
+    index_listings(trades)
     retriever = ListingRetriever(trades=trades, k=RETRIEVE_K * (1 + s.get("relax_level", 0)))
     lists = [retriever.invoke(q, config={"tags": ["dense", "mmr"], "metadata": {"query": q, "trades": trades}}) for q in s["queries"]]
     fused = rrf_fuse(lists)

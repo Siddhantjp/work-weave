@@ -1,6 +1,6 @@
 from langchain_core.documents import Document
 
-from app.search.retrieval import dedupe_near_dups, rrf_fuse, trade_filter
+from app.search.retrieval import dedupe_near_dups, rrf_fuse
 
 
 def d(url, title="Delivery Boy", emp="Swiggy", loc="Jaya Nagar"):
@@ -17,9 +17,3 @@ def test_dedupe_collapses_reposts_but_keeps_distinct_jobs():
     fused = rrf_fuse([[d("1"), d("2"), d("3", emp="Zomato")]])
     unique, removed = dedupe_near_dups(fused)
     assert removed == 1 and {x.metadata["url"] for x, _ in unique} == {"1", "3"}
-
-
-def test_trade_filter_shapes():
-    assert trade_filter([]) is None
-    assert trade_filter(["security guard"]) == {"trade_security_guard": True}
-    assert trade_filter(["delivery", "driver"]) == {"$or": [{"trade_delivery": True}, {"trade_driver": True}]}

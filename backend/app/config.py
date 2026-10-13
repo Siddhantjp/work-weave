@@ -15,7 +15,6 @@ def _path(value: str) -> Path:
 
 
 DB_PATH = _path(os.getenv("DB_PATH", "data/listings.db"))
-CHROMA_DIR = _path(os.getenv("CHROMA_DIR", "data/chroma"))
 FRONTEND_DIR = ROOT / "frontend" / "dist"
 
 # Listing source (apna.co)
@@ -26,6 +25,10 @@ AUTO_REFRESH_MINUTES = float(os.getenv("AUTO_REFRESH_MINUTES", "0"))         # 0
 # LLM (Groq)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+# Embeddings (Google Gemini API, free key from https://aistudio.google.com/apikey)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
 
 # Accounts: a separate database from the listings. Postgres in production (DATABASE_URL), a local SQLite file otherwise.
 USER_DATABASE_URL = os.getenv("USER_DATABASE_URL") or os.getenv("DATABASE_URL") or f"sqlite:///{_path('data/users.db').as_posix()}"

@@ -1,6 +1,6 @@
 """Retrieval layer: a real LangChain retriever + reciprocal-rank fusion.
 
-* ListingRetriever   - BaseRetriever over the Chroma index. Metadata-filtered by trade, MMR for diversity
+* ListingRetriever   - BaseRetriever over the listing vectors. Filtered by trade, MMR for diversity
                        (so four reposts of one job do not crowd out other employers).
 * rrf_fuse           - Reciprocal Rank Fusion across the multiple rewritten queries (Cormack et al., 2009).
 * dedupe_near_dups   - collapses identical reposts (same title + employer + area).
@@ -16,12 +16,7 @@ from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import Field
 
-from .index import trade_flag, vector_store
-
-
-def trade_filter(trades: list[str]) -> dict | None:
-    flags = [{trade_flag(t): True} for t in trades]
-    return None if not flags else flags[0] if len(flags) == 1 else {"$or": flags}
+from . import index
 
 
 class ListingRetriever(BaseRetriever):
@@ -30,8 +25,7 @@ class ListingRetriever(BaseRetriever):
     lambda_mult: float = 0.6        # 1.0 = pure relevance, 0.0 = pure diversity
 
     def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> list[Document]:
-        return vector_store().max_marginal_relevance_search(
-            query, k=self.k, fetch_k=self.k * 4, lambda_mult=self.lambda_mult, filter=trade_filter(self.trades))
+        return index.search(query, self.trades, k=self.k, fetch_k=self.k * 4, lambda_mult=self.lambda_mult)
 
 
 def rrf_fuse(result_lists: list[list[Document]], c: int = 60) -> list[tuple[Document, float]]:
