@@ -1,0 +1,41 @@
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource-variable/source-serif-4";
+@import "@fontsource-variable/source-serif-4/wght-italic.css";
+@import "@fontsource-variable/noto-sans-devanagari";
+@import "@fontsource-variable/noto-sans-kannada";
+@import "@fontsource-variable/noto-sans-tamil";
+@import "@fontsource-variable/noto-sans-telugu";
+@import "@fontsource-variable/noto-sans-malayalam";
+@import "@fontsource-variable/noto-sans-bengali";
+@import "@fontsource-variable/noto-sans-gujarati";
+@import "@fontsource-variable/noto-sans-gurmukhi";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply bg-canvas font-sans text-base text-ink antialiased; }
+  h1, h2, h3 { @apply font-display font-semibold tracking-tight; }
+  :focus-visible { @apply outline-none ring-2 ring-brand/60 ring-offset-2 ring-offset-canvas; }
+}
+
+/* One control height (48px) and fully rounded ends for every button, field and select, so nothing is ever uneven. */
+@layer components {
+  .btn { @apply inline-flex h-12 shrink-0 select-none items-center justify-center gap-2 rounded-full px-6 text-[15px] font-semibold leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-brand text-white shadow-sm hover:bg-brand-hover; }
+  .btn-soft { @apply btn bg-brand-soft text-brand-ink hover:bg-[#d3e8dc]; }
+  .btn-ghost { @apply btn border border-line-strong bg-white text-ink hover:bg-canvas; }
+  .btn-sm { @apply h-10 px-4 text-sm; }
+  .field { @apply h-12 w-full rounded-xl border border-line-strong bg-white px-4 text-base text-ink placeholder:text-ink-3 transition-shadow focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15; }
+  .card { @apply rounded-3xl border border-line bg-white shadow-card; }
+  .chip { @apply inline-flex h-7 items-center gap-1.5 rounded-full bg-canvas px-3 text-[13px] font-medium leading-none text-ink-2; }
+  .pill { @apply inline-flex h-10 select-none items-center gap-2 rounded-full border border-line-strong bg-white px-4 text-sm font-medium text-ink transition-colors hover:border-brand hover:bg-brand-soft; }
+}
+.skeleton { background: linear-gradient(90deg, #f1ead9 25%, #faf6ee 37%, #f1ead9 63%); background-size: 200% 100%; }
+.dots { background-image: radial-gradient(#d6cab0 1.2px, transparent 1.2px); background-size: 22px 22px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Ambient backdrop: two faint colour washes so the page is never flat. */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(60rem 36rem at 12% -8%, rgba(22,106,77,.09), transparent 60%), radial-gradient(52rem 32rem at 100% 0%, rgba(232,163,23,.12), transparent 60%); }
