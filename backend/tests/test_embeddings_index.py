@@ -33,6 +33,7 @@ def gemini(monkeypatch):
     monkeypatch.setattr(embeddings.time, "sleep", lambda s: None)
     monkeypatch.setattr(config, "GEMINI_API_KEY", "test-key")
     embeddings._query_vector.cache_clear()
+    embeddings._sent.clear()
 
 
 def test_documents_are_batched_normalised_and_sent_with_the_right_task(gemini):
@@ -162,3 +163,31 @@ def test_retry_delay_is_read_from_the_header_or_the_error_body():
     body = {"error": {"details": [{"retryDelay": "28.5s"}]}}
     assert embeddings._retry_delay(httpx.Response(429, json=body, request=req)) == 28.5
     assert embeddings._retry_delay(httpx.Response(429, text="not json", request=req)) == 0.0
+
+
+def test_embedding_is_paced_so_a_burst_never_exceeds_the_per_minute_limit(gemini, monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(embeddings.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(embeddings.time, "sleep", lambda s: clock.__setitem__(0, clock[0] + s))
+    sent_at = []
+    real = FakeHttp.post
+
+    def stamped(url, json=None, headers=None, timeout=None):
+        sent_at.append((clock[0], len(json["requests"])))
+        return real(url, json=json, headers=headers, timeout=timeout)
+    monkeypatch.setattr(embeddings.httpx, "post", stamped)
+    embeddings.GeminiEmbeddings().embed_documents([f"t{i}" for i in range(200)])      # 8 batches of 25
+    assert sum(n for _, n in sent_at) == 200
+    for t, _ in sent_at:                                                                # in every rolling minute, at most 80 texts
+        assert sum(n for u, n in sent_at if t - 60 < u <= t) <= embeddings.ITEMS_PER_MINUTE
+    assert sent_at[-1][0] - sent_at[0][0] >= 120                                        # it really did spread out
+    monkeypatch.setattr(embeddings.httpx, "post", real)
+
+
+def test_one_search_embeds_at_most_a_minutes_worth_and_the_next_search_finishes_the_job(fake_index, monkeypatch):
+    monkeypatch.setattr(index, "MAX_NEW_PER_SEARCH", 30)
+    for i in range(50):
+        add(f"u{i}", "driver", f"Driver {i}", f"Company {i}")
+    assert index.index_listings(["driver"]) == 30
+    assert index.index_listings(["driver"]) == 20
+    assert index.index_listings(["driver"]) == 0

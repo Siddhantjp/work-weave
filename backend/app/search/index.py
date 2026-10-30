@@ -15,6 +15,7 @@ from langchain_core.documents import Document
 from .. import db
 from .embeddings import DIM, GeminiEmbeddings
 
+MAX_NEW_PER_SEARCH = 80    # one minute of embedding budget; anything left over is embedded by the next search
 INDEX_VERSION = "v3-gemini"     # bump to force a full re-index when the indexed text or the embedding model changes
 embedder = GeminiEmbeddings()
 
@@ -38,7 +39,7 @@ def index_listings(trades: list[str] | None = None) -> int:
     Nothing is held open across the network call."""
     where, args = _trade_clause(trades)
     with db.connect() as con:
-        rows = con.execute(f"SELECT * FROM listings WHERE {where}", args).fetchall()
+        rows = con.execute(f"SELECT * FROM listings WHERE {where} ORDER BY acquired_at DESC", args).fetchall()
         have = {r["url"]: r["content_hash"] for r in con.execute("SELECT url, content_hash FROM listing_vectors")}
     todo = []
     for r in rows:
@@ -46,6 +47,7 @@ def index_listings(trades: list[str] | None = None) -> int:
         h = hashlib.sha1(f"{text}|{INDEX_VERSION}".encode()).hexdigest()[:12]
         if have.get(r["url"]) != h:
             todo.append((r["url"], text, h))
+    todo = todo[:MAX_NEW_PER_SEARCH]
     if not todo:
         return 0
     vectors = embedder.embed_documents([t for _, t, _ in todo])

@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import math
 import re
+import threading
 import time
+from collections import deque
 from functools import lru_cache
 
 import httpx
@@ -19,7 +21,26 @@ URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbe
 DIM = 768
 BATCH = 25                 # texts per request: keeps each call well inside the free tier's tokens-per-minute limit
 RETRIES = 4
+ITEMS_PER_MINUTE = 80      # Google counts every text as a request (free tier: 100 per minute); stay under it
 MAX_WAIT_S = 90            # total time we are willing to wait out a rate limit before telling the user
+
+
+_sent: deque[tuple[float, int]] = deque()      # (time, number of texts) for the last minute, shared by all searches
+_gate = threading.Lock()
+
+
+def _throttle(n: int) -> None:
+    """Block until sending n more texts keeps us within ITEMS_PER_MINUTE. Bursts are what Google rejects."""
+    while True:
+        with _gate:
+            now = time.monotonic()
+            while _sent and now - _sent[0][0] >= 60:
+                _sent.popleft()
+            if not _sent or sum(c for _, c in _sent) + n <= ITEMS_PER_MINUTE:
+                _sent.append((now, n))
+                return
+            wait = 60 - (now - _sent[0][0]) + 0.1
+        time.sleep(wait)
 
 
 class EmbeddingError(RuntimeError):
@@ -61,6 +82,7 @@ def _post(body: dict) -> dict:
     last, waited = "no response", 0.0
     for attempt in range(RETRIES):
         hint = 0.0
+        _throttle(len(body["requests"]))
         try:
             r = httpx.post(URL.format(model=config.GEMINI_EMBED_MODEL), json=body, timeout=30,
                            headers={"x-goog-api-key": config.GEMINI_API_KEY})
