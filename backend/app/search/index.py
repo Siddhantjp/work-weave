@@ -24,7 +24,7 @@ def listing_text(row) -> str:
     tags = ", ".join(json.loads(row["tags_json"] or "[]"))
     text = (f"{row['title']} at {row['employer']}. Location: {row['locality'] or 'unspecified'}. "
             f"Salary: {row['salary_text'] or 'not stated'}. {tags}.")
-    return text + (f" {row['description'][:700]}" if row["description"] else "")
+    return text + (f" {row['description'][:400]}" if row["description"] else "")
 
 
 def _trade_clause(trades: list[str] | None, column: str = "trades") -> tuple[str, list[str]]:

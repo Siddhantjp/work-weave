@@ -6,6 +6,7 @@ L2-normalised, so cosine similarity is a plain dot product.
 from __future__ import annotations
 
 import math
+import re
 import time
 from functools import lru_cache
 
@@ -18,6 +19,7 @@ URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:batchEmbe
 DIM = 768
 BATCH = 25                 # texts per request: keeps each call well inside the free tier's tokens-per-minute limit
 RETRIES = 4
+MAX_WAIT_S = 90            # total time we are willing to wait out a rate limit before telling the user
 
 
 class EmbeddingError(RuntimeError):
@@ -41,9 +43,24 @@ def _explain(r: httpx.Response) -> str:
     return f"The embedding service failed ({r.status_code}): {detail}"
 
 
+def _retry_delay(r: httpx.Response) -> float:
+    """How long Google says to wait (Retry-After header, or the RetryInfo detail in the error body); 0 if it does not say."""
+    try:
+        if r.headers.get("retry-after"):
+            return float(r.headers["retry-after"])
+        for d in r.json()["error"].get("details", []):
+            m = re.fullmatch(r"(\d+(?:\.\d+)?)s", str(d.get("retryDelay", "")))
+            if m:
+                return float(m.group(1))
+    except Exception:
+        pass
+    return 0.0
+
+
 def _post(body: dict) -> dict:
-    last = "no response"
+    last, waited = "no response", 0.0
     for attempt in range(RETRIES):
+        hint = 0.0
         try:
             r = httpx.post(URL.format(model=config.GEMINI_EMBED_MODEL), json=body, timeout=30,
                            headers={"x-goog-api-key": config.GEMINI_API_KEY})
@@ -54,9 +71,12 @@ def _post(body: dict) -> dict:
                 return r.json()
             if r.status_code not in (429, 500, 502, 503, 504):
                 raise EmbeddingError(_explain(r))
-            last = _explain(r)
+            last, hint = _explain(r), _retry_delay(r)
         if attempt < RETRIES - 1:
-            time.sleep(min(2 ** (attempt + 1), 15))
+            wait = max(min(2 ** (attempt + 1), 15), hint) + 1      # a per-minute limit needs the full wait
+            if waited + wait > MAX_WAIT_S:
+                break
+            time.sleep(wait); waited += wait
     raise EmbeddingError(last[0].upper() + last[1:])
 
 

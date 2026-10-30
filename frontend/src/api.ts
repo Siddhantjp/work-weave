@@ -2,6 +2,7 @@ export class ApiError extends Error {}
 
 /** Turns technical backend messages into wording a customer can act on. */
 export function friendly(msg: string): string {
+  msg = msg.replace(/^[A-Za-z]+(Error|Exception):\s*/, "");          // hide Python class names such as "EmbeddingError: "
   if (/rate limit|429|tokens per/i.test(msg)) return "We are getting a lot of requests right now. Please try again in a minute.";
   if (/GROQ_API_KEY|api key/i.test(msg)) return "This feature is unavailable right now. Please try again later.";
   return msg;

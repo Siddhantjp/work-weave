@@ -138,3 +138,27 @@ def test_mmr_prefers_variety_over_a_near_duplicate():
     assert index.mmr(vectors, relevance, k=2, lambda_mult=1.0) == [0, 1]                   # pure relevance takes the repost
     assert index.mmr(vectors, relevance, k=2, lambda_mult=0.5) == [0, 2]                   # diversity skips it
     assert index.mmr(vectors, relevance, k=10, lambda_mult=0.5) == [0, 2, 1]               # never returns more than exist
+
+
+def test_waits_as_long_as_google_asks_but_gives_up_past_the_budget(gemini, monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(embeddings.time, "sleep", sleeps.append)
+    real = FakeHttp.post
+
+    def limited(url, json=None, headers=None, timeout=None):
+        FakeHttp.calls.append({"url": url})
+        body = {"error": {"message": "quota", "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "40s"}]}}
+        return httpx.Response(429, json=body, request=httpx.Request("POST", url))
+    monkeypatch.setattr(embeddings.httpx, "post", limited)
+    with pytest.raises(embeddings.EmbeddingError, match="busy"):
+        embeddings.GeminiEmbeddings().embed_documents(["a"])
+    assert sleeps == [41.0, 41.0]                      # honours Google's 40 s, then stops: a third wait would pass the 90 s budget
+    monkeypatch.setattr(embeddings.httpx, "post", real)
+
+
+def test_retry_delay_is_read_from_the_header_or_the_error_body():
+    req = httpx.Request("POST", "http://x")
+    assert embeddings._retry_delay(httpx.Response(429, headers={"retry-after": "12"}, json={}, request=req)) == 12.0
+    body = {"error": {"details": [{"retryDelay": "28.5s"}]}}
+    assert embeddings._retry_delay(httpx.Response(429, json=body, request=req)) == 28.5
+    assert embeddings._retry_delay(httpx.Response(429, text="not json", request=req)) == 0.0
